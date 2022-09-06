@@ -179,7 +179,6 @@ void Game::tick(Engine &ctx)
         ctx.state().iterateEntities(healthQuery, [](const Position &,
                                                     Health &health) {
             if (health.hp <= 0) {
-                printf("Dead!\n");
             }
         });
     }, true, cast_job, archer_job);
