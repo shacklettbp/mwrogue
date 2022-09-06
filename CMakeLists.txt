@@ -25,7 +25,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Og -ggdb3")
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
    add_compile_options (-fdiagnostics-color=always)
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-   add_compile_options (-fcolor-diagnostics)
+    add_compile_options (-fcolor-diagnostics -Wshadow)
 endif ()
 
 set(CMAKE_C_EXTENSIONS OFF)
@@ -40,6 +40,6 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 add_subdirectory(external)
 
-add_compile_options(-Wall -Wextra -Wshadow)
+add_compile_options(-Wall -Wextra)
 
 add_subdirectory(src)

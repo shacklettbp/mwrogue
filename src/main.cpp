@@ -12,11 +12,11 @@ static void launch()
 {
     StateManager state_mgr;
 
-    World world;
+    Optional<Game> game = Optional<Game>::none();
 
-    JobManager job_mgr(JobManager::makeEntry<Game>(
-        std::move(world), [](Game &game) {
-            World::entry(game);
+    JobManager job_mgr(JobManager::makeEntry<Engine>(
+        std::move(*game), [](Engine &ctx) {
+            Game::entry(ctx);
         }), 0, 0, &state_mgr);
 
     job_mgr.waitForAllFinished();

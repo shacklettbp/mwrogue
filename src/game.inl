@@ -2,9 +2,9 @@
 
 namespace MWRogue {
 
-Game::Game(World *world, madrona::WorkerInit &&init)
-    : madrona::CustomContext<Game>(std::move(init)),
-      world_((World *)world)
+Engine::Engine(Game *game, madrona::WorkerInit &&init)
+    : madrona::CustomContext<Engine>(std::move(init)),
+      game_(game)
 {}
 
 }
