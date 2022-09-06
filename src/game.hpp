@@ -4,6 +4,8 @@
 
 namespace MWRogue {
 
+class Game;
+
 struct World {
     static void entry(Game &game);
 };

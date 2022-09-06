@@ -1,20 +1,30 @@
 #include "game.hpp"
 
+using namespace madrona;
+
 namespace MWRogue {
 
-static void update(Game &game)
+static inline void update(Game &)
 {
     printf("Hi\n");
 }
 
+static void updateLoop(Game &game)
+{
+    update(game);
+
+    game.submit([](Game &game) {
+        updateLoop(game);
+    }, false, game.currentJobID());
+}
+
 void World::entry(Game &game)
 {
-    JobID update_id = game.submit([](Game &game) {
-        update(game);
+    // Initialization
 
-        game.submit([](Game &game) {
-            update(game);
-        }, false, game.jobID());
+    // Start game loop
+    game.submit([](Game &game) {
+        updateLoop(game);
     }, false);
 }
 

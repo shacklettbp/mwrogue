@@ -5,7 +5,6 @@
 #include "game.hpp"
 
 using namespace madrona;
-using namespace std;
 
 namespace MWRogue {
 
