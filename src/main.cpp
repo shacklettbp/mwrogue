@@ -20,6 +20,8 @@ static void launch()
         }), 0, 0, &state_mgr);
 
     job_mgr.waitForAllFinished();
+
+    printf("Done\n");
 }
 
 }

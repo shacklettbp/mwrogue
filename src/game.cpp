@@ -187,6 +187,9 @@ void Game::tick(Engine &ctx)
 void Game::gameLoop(Engine &ctx)
 {
     ctx.submit([this](Engine &ctx) {
+        if (tickCount % 10000 == 0) {
+            printf("Tick start %llu\n", tickCount);
+        }
         tick(ctx);
 
         tickCount += 1;
