@@ -31,6 +31,7 @@ struct Game {
     madrona::Query<Position, Health> healthQuery;
     madrona::Query<Action, Mana> casterQuery;
     madrona::Query<Action, Quiver> archerQuery;
+    madrona::Query<madrona::Entity, Health> cleanupQuery;
 };
 
 class Engine : public::madrona::CustomContext<Engine> {

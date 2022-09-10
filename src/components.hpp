@@ -12,7 +12,7 @@ struct Position : madrona::Vector3 {
 };
 
 struct Health {
-    uint32_t hp;
+    int hp;
 };
 
 struct Mana {
@@ -20,14 +20,21 @@ struct Mana {
 };
 
 struct Quiver {
-    uint32_t numArrows;
+    int numArrows;
 };
 
 struct Action {
     float remainingTime;
 };
 
+struct CleanupEntity : madrona::Entity {
+    CleanupEntity(madrona::Entity e)
+        : Entity(e)
+    {}
+};
+
 struct Dragon : madrona::Archetype<Position, Health, Action, Mana> {};
 struct Knight : madrona::Archetype<Position, Health, Action, Quiver> {};
+struct CleanupTracker : madrona::Archetype<CleanupEntity> {};
 
 }

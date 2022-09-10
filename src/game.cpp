@@ -46,14 +46,17 @@ void Game::init(Engine &ctx)
     ctx.state().registerComponent<Action>();
     ctx.state().registerComponent<Mana>();
     ctx.state().registerComponent<Quiver>();
+    ctx.state().registerComponent<CleanupEntity>();
 
     ctx.state().registerArchetype<Dragon>();
     ctx.state().registerArchetype<Knight>();
+    ctx.state().registerArchetype<CleanupTracker>();
 
     actionQuery = ctx.query<Position, Action>();
     healthQuery = ctx.query<Position, Health>();
     casterQuery = ctx.query<Action, Mana>();
     archerQuery = ctx.query<Action, Quiver>();
+    cleanupQuery = ctx.query<Entity, Health>();
 
     const int init_num_dragons = 10;
     const int init_num_knights = 20;
@@ -61,7 +64,7 @@ void Game::init(Engine &ctx)
     const int knight_hp = 100;
 
     std::uniform_real_distribution<float> mp_dist(0.f, 50.f);
-    std::uniform_int_distribution<uint32_t> arrows_dist(0, 100);
+    std::uniform_int_distribution<int> arrows_dist(0, 100);
 
     for (int i = 0; i < init_num_dragons; i++) {
         Position rand_pos = randomPosition();
@@ -176,36 +179,44 @@ void Game::tick(Engine &ctx)
     }, true, init_action_job);
 
     ctx.submit([this](Engine &ctx) {
-        ctx.state().iterateEntities(healthQuery, [](const Position &,
-                                                    Health &health) {
+        ctx.state().iterateEntities(cleanupQuery, [&ctx](Entity e, Health &health) {
             if (health.hp <= 0) {
+                ctx.state().makeEntity<CleanupTracker>(CleanupEntity(e));
             }
         });
+
+        auto cleanup_tracker = ctx.archetype<CleanupTracker>();
+        auto cleanup_entities = cleanup_tracker.component<CleanupEntity>();
+        for (auto idx : cleanup_tracker) {
+            ctx.state().destroyEntity(cleanup_entities[idx]);
+        }
+
+        cleanup_tracker.clear();
     }, true, cast_job, archer_job);
 }
 
 void Game::gameLoop(Engine &ctx)
 {
     ctx.submit([this](Engine &ctx) {
+        auto dragons = ctx.archetype<Dragon>();
+        auto knights = ctx.archetype<Knight>();
+
+        if (dragons.size() == 0) {
+            printf("Knights win!\n");
+            return;
+        }
+
+        if (knights.size() == 0) {
+            printf("Dragons win!\n");
+            return;
+        }
+
         if (tickCount % 10000 == 0) {
             printf("Tick start %llu\n", tickCount);
         }
         tick(ctx);
 
         tickCount += 1;
-
-        auto dragons = ctx.archetype<Dragon>();
-        auto knights = ctx.archetype<Knight>();
-
-        if (dragons.size() == 0) {
-            printf("Dragons win!\n");
-            return;
-        }
-
-        if (knights.size() == 0) {
-            printf("Knights win!\n");
-            return;
-        }
 
         gameLoop(ctx);
     }, false, ctx.currentJobID());
