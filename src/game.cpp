@@ -64,7 +64,7 @@ void Game::init(Engine &ctx)
     const int knight_hp = 100;
 
     std::uniform_real_distribution<float> mp_dist(0.f, 50.f);
-    std::uniform_int_distribution<int> arrows_dist(0, 100);
+    std::uniform_int_distribution<int> arrows_dist(20, 40);
 
     for (int i = 0; i < init_num_dragons; i++) {
         Position rand_pos = randomPosition();
@@ -157,10 +157,10 @@ void Game::tick(Engine &ctx)
         action.remainingTime = castTime;
     }, true, init_action_job);
 
-    JobID archer_job = ctx.forAll(archerQuery, [](Engine &ctx,
-                                                  Action &action,
-                                                  Quiver &quiver) {
-        if (action.remainingTime > 0) {
+    JobID archer_job = ctx.forAll(archerQuery, [this](Engine &ctx,
+                                                      Action &action,
+                                                      Quiver &quiver) {
+        if (action.remainingTime > 0 || quiver.numArrows == 0) {
             return;
         }
 
@@ -176,6 +176,7 @@ void Game::tick(Engine &ctx)
         dragon_health.hp -= damage;
 
         quiver.numArrows -= 1;
+        action.remainingTime = shootTime;
     }, true, init_action_job);
 
     ctx.submit([this](Engine &ctx) {
