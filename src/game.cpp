@@ -4,7 +4,7 @@
 
 using namespace madrona;
 
-namespace MWRogue {
+namespace MadRogue {
 
 // FIXME
 static std::mt19937 & randGen()
@@ -192,7 +192,7 @@ void Game::tick(Engine &ctx)
             ctx.state().destroyEntity(cleanup_entities[idx]);
         }
 
-        cleanup_tracker.clear();
+        cleanup_tracker.reset();
     }, true, cast_job, archer_job);
 }
 

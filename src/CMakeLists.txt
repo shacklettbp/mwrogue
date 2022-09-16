@@ -1,15 +1,31 @@
-add_library(mwrogue_core STATIC
+set(MADROGUE_CORE_SRCS
     game.hpp game.inl game.cpp
 )
 
-target_link_libraries(mwrogue_core PUBLIC
+add_library(madrogue_sw_core STATIC
+    ${MADROGUE_CORE_SRCS}
+)
+target_link_libraries(madrogue_sw_core PUBLIC
     madrona_core
 )
 
-add_executable(mwrogue
+add_executable(madrogue
     main.cpp
 )
+target_link_libraries(madrogue PRIVATE
+    madrogue_sw_core
+)
 
-target_link_libraries(mwrogue PRIVATE
-    mwrogue_core
+add_library(madrogue_mw_core STATIC
+    ${MADROGUE_CORE_SRCS}
+)
+target_link_libraries(madrogue_mw_core PUBLIC
+    madrona_mw_core
+)
+
+add_executable(madrogue_mw
+    mw_cpu.cpp
+)
+target_link_libraries(madrogue_mw PRIVATE
+    madrogue_mw_core
 )

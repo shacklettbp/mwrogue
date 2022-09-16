@@ -1,6 +1,6 @@
 #pragma once
 
-namespace MWRogue {
+namespace MadRogue {
 
 Engine::Engine(Game *game, madrona::WorkerInit &&init)
     : madrona::CustomContext<Engine>(std::move(init)),

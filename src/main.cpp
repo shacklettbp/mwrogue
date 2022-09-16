@@ -6,16 +6,16 @@
 
 using namespace madrona;
 
-namespace MWRogue {
+namespace MadRogue {
 
 static void launch()
 {
     StateManager state_mgr;
 
-    Optional<Game> game = Optional<Game>::none();
+    Game game;
 
     JobManager job_mgr(JobManager::makeEntry<Engine>(
-        std::move(*game), [](Engine &ctx) {
+        &game, [](Engine &ctx) {
             Game::entry(ctx);
         }), 0, 0, &state_mgr);
 
@@ -31,5 +31,5 @@ int main(int argc, char *argv[])
     (void)argc;
     (void)argv;
 
-    MWRogue::launch();
+    MadRogue::launch();
 }

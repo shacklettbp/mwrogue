@@ -3,7 +3,7 @@
 #include <madrona/geometry.hpp>
 #include <madrona/ecs.hpp>
 
-namespace MWRogue {
+namespace MadRogue {
 
 struct Position : madrona::Vector3 {
     Position(Vector3 o)

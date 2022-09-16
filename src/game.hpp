@@ -5,7 +5,7 @@
 #include <madrona/custom_context.hpp>
 #include <random>
 
-namespace MWRogue {
+namespace MadRogue {
 
 class Engine;
 
