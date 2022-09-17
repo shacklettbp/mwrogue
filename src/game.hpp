@@ -11,7 +11,8 @@ class Engine;
 
 struct Game {
     static void entry(Engine &ctx);
-    void init(Engine &ctx);
+
+    Game(Engine &ctx);
     void gameLoop(Engine &ctx);
     void tick(Engine &ctx);
 

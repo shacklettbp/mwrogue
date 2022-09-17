@@ -27,7 +27,7 @@ Vector3 Game::randomPosition()
     };
 }
 
-void Game::init(Engine &ctx)
+Game::Game(Engine &ctx)
 {
     tickCount = 0;
     deltaT = 1.f / 60.f;
@@ -227,7 +227,7 @@ void Game::entry(Engine &ctx)
 {
     Game &game = ctx.game();
     // Initialization
-    game.init(ctx);
+    new (&game) Game(ctx);
 
     // Start game loop
     game.gameLoop(ctx);

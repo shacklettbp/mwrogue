@@ -12,10 +12,7 @@ static void launch()
 {
     StateManager state_mgr;
 
-    Game game;
-
-    JobManager job_mgr(JobManager::makeEntry<Engine>(
-        &game, [](Engine &ctx) {
+    JobManager job_mgr(JobManager::makeEntry<Engine, Game>([](Engine &ctx) {
             Game::entry(ctx);
         }), 0, 0, &state_mgr);
 

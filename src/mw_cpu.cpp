@@ -12,10 +12,7 @@ static void launch(int num_worlds)
 {
     StateManager state_mgr(num_worlds);
 
-    HeapArray<Game> games(num_worlds);
-
-    JobManager job_mgr(JobManager::makeEntry<Engine>(
-        games.data(), [](Engine &ctx) {
+    JobManager job_mgr(JobManager::makeEntry<Engine, Game>([](Engine &ctx) {
             Game::entry(ctx);
         }), 0, 0, &state_mgr);
 
