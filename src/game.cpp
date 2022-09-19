@@ -41,16 +41,16 @@ Game::Game(Engine &ctx)
         .pMax = Vector3 { 10, 10, 10, },
     };
 
-    ctx.state().registerComponent<Position>();
-    ctx.state().registerComponent<Health>();
-    ctx.state().registerComponent<Action>();
-    ctx.state().registerComponent<Mana>();
-    ctx.state().registerComponent<Quiver>();
-    ctx.state().registerComponent<CleanupEntity>();
+    ctx.registerComponent<Position>();
+    ctx.registerComponent<Health>();
+    ctx.registerComponent<Action>();
+    ctx.registerComponent<Mana>();
+    ctx.registerComponent<Quiver>();
+    ctx.registerComponent<CleanupEntity>();
 
-    ctx.state().registerArchetype<Dragon>();
-    ctx.state().registerArchetype<Knight>();
-    ctx.state().registerArchetype<CleanupTracker>();
+    ctx.registerArchetype<Dragon>();
+    ctx.registerArchetype<Knight>();
+    ctx.registerArchetype<CleanupTracker>();
 
     actionQuery = ctx.query<Position, Action>();
     healthQuery = ctx.query<Position, Health>();
@@ -87,7 +87,7 @@ Game::Game(Engine &ctx)
 
 void Game::tick(Engine &ctx)
 {
-    JobID init_action_job = ctx.forAll(actionQuery, [this](Engine &ctx,
+    JobID init_action_job = ctx.parallelFor(actionQuery, [this](Engine &ctx,
                                                            Position &pos,
                                                            Action &action) {
         if (action.remainingTime > 0) {
@@ -123,9 +123,9 @@ void Game::tick(Engine &ctx)
         } 
     });
 
-    JobID cast_job = ctx.forAll(casterQuery, [this](Engine &ctx,
-                                                    Action &action,
-                                                    Mana &mana) {
+    JobID cast_job = ctx.parallelFor(casterQuery, [this](Engine &ctx,
+                                                         Action &action,
+                                                         Mana &mana) {
         mana.mp += manaRegenRate * deltaT;
 
         if (action.remainingTime > 0) {
@@ -143,9 +143,9 @@ void Game::tick(Engine &ctx)
 
         auto target_pos = randomPosition();
 
-        ctx.forAll(healthQuery, [target_pos](Engine &,
-                                             const Position &pos,
-                                             Health &health) {
+        ctx.parallelFor(healthQuery, [target_pos](Engine &,
+                                                  const Position &pos,
+                                                  Health &health) {
             const float blast_radius = 2.f;
             const float damage = 20.f;
 
@@ -157,9 +157,9 @@ void Game::tick(Engine &ctx)
         action.remainingTime = castTime;
     }, true, init_action_job);
 
-    JobID archer_job = ctx.forAll(archerQuery, [this](Engine &ctx,
-                                                      Action &action,
-                                                      Quiver &quiver) {
+    JobID archer_job = ctx.parallelFor(archerQuery, [this](Engine &ctx,
+                                                           Action &action,
+                                                           Quiver &quiver) {
         if (action.remainingTime > 0 || quiver.numArrows == 0) {
             return;
         }
@@ -180,7 +180,7 @@ void Game::tick(Engine &ctx)
     }, true, init_action_job);
 
     ctx.submit([this](Engine &ctx) {
-        ctx.state().iterateEntities(cleanupQuery, [&ctx](Entity e, Health &health) {
+        ctx.forEach(cleanupQuery, [&ctx](Entity e, Health &health) {
             if (health.hp <= 0) {
                 ctx.makeEntityNow<CleanupTracker>(CleanupEntity(e));
             }
@@ -188,8 +188,8 @@ void Game::tick(Engine &ctx)
 
         auto cleanup_tracker = ctx.archetype<CleanupTracker>();
         auto cleanup_entities = cleanup_tracker.component<CleanupEntity>();
-        for (auto idx : cleanup_tracker) {
-            ctx.destroyEntityNow(cleanup_entities[idx]);
+        for (int i = 0, n = cleanup_tracker.size(); i < n; i++) {
+            ctx.destroyEntityNow(cleanup_entities[i]);
         }
 
         ctx.clearArchetype<CleanupTracker>();
