@@ -27,7 +27,7 @@ Vector3 Game::randomPosition()
     };
 }
 
-Game::Game(Engine &ctx)
+Game::Game(Engine &ctx, const BenchmarkConfig &bench)
 {
     tickCount = 0;
     deltaT = 1.f / 60.f;
@@ -58,8 +58,17 @@ Game::Game(Engine &ctx)
     archerQuery = ctx.query<Action, Quiver>();
     cleanupQuery = ctx.query<Entity, Health>();
 
-    const int init_num_dragons = 10;
-    const int init_num_knights = 20;
+    int init_num_dragons;
+    int init_num_knights;
+
+    if (bench.enable) {
+        init_num_dragons = bench.numDragons;
+        init_num_knights = bench.numKnights;
+    } else {
+        init_num_dragons = 10;
+        init_num_knights = 20;
+    }
+
     const int dragon_hp = 1000;
     const int knight_hp = 100;
 
@@ -223,14 +232,124 @@ void Game::gameLoop(Engine &ctx)
     }, false, ctx.currentJobID());
 }
 
-void Game::entry(Engine &ctx)
+void Game::benchmark(Engine &ctx, const BenchmarkConfig &bench)
+{
+    ctx.submit([this, &bench](Engine &ctx) {
+        if (tickCount == bench.numTicks) {
+            printf("Finished\n");
+            return;
+        }
+
+        JobID init_action_job = ctx.parallelFor(actionQuery, [this](Engine &ctx,
+                                                               Position &pos,
+                                                               Action &action) {
+            if (action.remainingTime > 0) {
+                action.remainingTime -= deltaT;
+                return;
+            }
+            
+            std::uniform_real_distribution<float> action_prob(0.f, 1.f);
+
+            float move_cutoff = 0.5f;
+
+            if (action_prob(randGen()) <= move_cutoff) {
+                ctx.submit([this, &pos, &action](Engine &) {
+
+                    // Move
+                    std::uniform_real_distribution<float> pos_dist(-1.f, 1.f);
+
+                    Vector3 new_pos = pos + Vector3 {
+                        pos_dist(randGen()),
+                        pos_dist(randGen()),
+                        pos_dist(randGen()),
+                    };
+
+                    new_pos.x = std::clamp(new_pos.x, worldBounds.pMin.x, worldBounds.pMax.x);
+                    new_pos.y = std::clamp(new_pos.y, worldBounds.pMin.y, worldBounds.pMax.y);
+                    new_pos.z = std::clamp(new_pos.x, worldBounds.pMin.z, worldBounds.pMax.z);
+
+                    Vector3 pos_delta = new_pos - pos;
+                    pos = new_pos;
+
+                    action.remainingTime = pos_delta.length() / moveSpeed;
+                });
+            } 
+        });
+
+        ctx.parallelFor(casterQuery, [this](Engine &ctx,
+                                            Action &action,
+                                            Mana &mana) {
+            mana.mp += manaRegenRate * deltaT;
+
+            if (action.remainingTime > 0) {
+                return;
+            }
+            // move job runs first so if remainingTime == 0, always act (otherwise would do nothing)
+
+            const float cast_cost = 20.f;
+
+            if (mana.mp < cast_cost) {
+                return;
+            }
+
+            mana.mp -= cast_cost;
+
+            auto target_pos = randomPosition();
+
+            ctx.parallelFor(healthQuery, [target_pos](Engine &,
+                                                      const Position &pos,
+                                                      Health &health) {
+                const float blast_radius = 2.f;
+                const float damage = 20.f;
+
+                if (target_pos.distance(pos) <= blast_radius) {
+                    health.hp -= damage;
+                }
+            });
+
+            action.remainingTime = castTime;
+        }, true, init_action_job);
+
+        ctx.parallelFor(archerQuery, [this](Engine &ctx,
+                                            Action &action,
+                                            Quiver &quiver) {
+            if (action.remainingTime > 0 || quiver.numArrows == 0) {
+                return;
+            }
+
+            auto dragons = ctx.archetype<Dragon>();
+            uint32_t num_dragons = dragons.size();
+
+            std::uniform_int_distribution<uint32_t> dragon_sel(0, num_dragons - 1);
+
+            uint32_t dragon_idx = dragon_sel(randGen());
+            Health &dragon_health = dragons.get<Health>(dragon_idx);
+
+            const float damage = 15.f;
+            dragon_health.hp -= damage;
+
+            quiver.numArrows -= 1;
+            action.remainingTime = shootTime;
+        }, true, init_action_job);
+
+        tickCount++;
+
+        benchmark(ctx, bench);
+    }, false, ctx.currentJobID());
+}
+
+void Game::entry(Engine &ctx, const BenchmarkConfig &bench)
 {
     Game &game = ctx.game();
     // Initialization
-    new (&game) Game(ctx);
+    new (&game) Game(ctx, bench);
 
     // Start game loop
-    game.gameLoop(ctx);
+    if (bench.enable) {
+        game.benchmark(ctx, bench);
+    } else {
+        game.gameLoop(ctx);
+    }
 }
 
 }

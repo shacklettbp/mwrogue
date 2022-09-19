@@ -9,12 +9,20 @@ namespace MadRogue {
 
 class Engine;
 
-struct Game {
-    static void entry(Engine &ctx);
+struct BenchmarkConfig {
+    bool enable;
+    uint32_t numTicks;
+    uint32_t numKnights;
+    uint32_t numDragons;
+};
 
-    Game(Engine &ctx);
+struct Game {
+    static void entry(Engine &ctx, const BenchmarkConfig &bench);
+
+    Game(Engine &ctx, const BenchmarkConfig &bench);
     void gameLoop(Engine &ctx);
     void tick(Engine &ctx);
+    void benchmark(Engine &ctx, const BenchmarkConfig &bench);
 
     madrona::Vector3 randomPosition();
 
