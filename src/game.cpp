@@ -72,7 +72,7 @@ Game::Game(Engine &ctx)
         Action act { 0 };
         Mana mp { mp_dist(randGen()) };
 
-        ctx.state().makeEntity<Dragon>(rand_pos, health, act, mp);
+        ctx.makeEntityNow<Dragon>(rand_pos, health, act, mp);
     }
 
     for (int i = 0; i < init_num_knights; i++) {
@@ -81,7 +81,7 @@ Game::Game(Engine &ctx)
         Action act { 0 };
         Quiver q { arrows_dist(randGen()) };
 
-        ctx.state().makeEntity<Knight>(rand_pos, health, act, q);
+        ctx.makeEntityNow<Knight>(rand_pos, health, act, q);
     }
 }
 
@@ -170,7 +170,7 @@ void Game::tick(Engine &ctx)
         std::uniform_int_distribution<uint32_t> dragon_sel(0, num_dragons - 1);
 
         uint32_t dragon_idx = dragon_sel(randGen());
-        Health &dragon_health = dragons.get<Health>(Loc { dragon_idx });
+        Health &dragon_health = dragons.get<Health>(dragon_idx);
 
         const float damage = 15.f;
         dragon_health.hp -= damage;
@@ -182,17 +182,17 @@ void Game::tick(Engine &ctx)
     ctx.submit([this](Engine &ctx) {
         ctx.state().iterateEntities(cleanupQuery, [&ctx](Entity e, Health &health) {
             if (health.hp <= 0) {
-                ctx.state().makeEntity<CleanupTracker>(CleanupEntity(e));
+                ctx.makeEntityNow<CleanupTracker>(CleanupEntity(e));
             }
         });
 
         auto cleanup_tracker = ctx.archetype<CleanupTracker>();
         auto cleanup_entities = cleanup_tracker.component<CleanupEntity>();
         for (auto idx : cleanup_tracker) {
-            ctx.state().destroyEntity(cleanup_entities[idx]);
+            ctx.destroyEntityNow(cleanup_entities[idx]);
         }
 
-        cleanup_tracker.reset();
+        ctx.clearArchetype<CleanupTracker>();
     }, true, cast_job, archer_job);
 }
 
