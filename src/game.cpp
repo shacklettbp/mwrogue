@@ -236,7 +236,6 @@ void Game::benchmark(Engine &ctx, const BenchmarkConfig &bench)
 {
     ctx.submit([this, &bench](Engine &ctx) {
         if (tickCount == bench.numTicks) {
-            printf("Finished\n");
             return;
         }
 
