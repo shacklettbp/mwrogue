@@ -2,6 +2,8 @@
 
 #include "components.hpp"
 
+#include <cinttypes>
+
 using namespace madrona;
 
 namespace MadRogue {
@@ -14,11 +16,11 @@ static std::mt19937 & randGen()
     return rand_gen;
 }
 
-Vector3 Game::randomPosition()
+static Vector3 randomPosition(const AABB &bounds)
 {
-    std::uniform_real_distribution<float> x_dist(worldBounds.pMin.x, worldBounds.pMax.x);
-    std::uniform_real_distribution<float> y_dist(worldBounds.pMin.y, worldBounds.pMax.y);
-    std::uniform_real_distribution<float> z_dist(worldBounds.pMin.z, worldBounds.pMax.z);
+    std::uniform_real_distribution<float> x_dist(bounds.pMin.x, bounds.pMax.x);
+    std::uniform_real_distribution<float> y_dist(bounds.pMin.y, bounds.pMax.y);
+    std::uniform_real_distribution<float> z_dist(bounds.pMin.z, bounds.pMax.z);
     
     return Vector3 {
         x_dist(randGen()),
@@ -76,7 +78,7 @@ Game::Game(Engine &ctx, const BenchmarkConfig &bench)
     std::uniform_int_distribution<int> arrows_dist(20, 40);
 
     for (int i = 0; i < init_num_dragons; i++) {
-        Position rand_pos = randomPosition();
+        Position rand_pos = randomPosition(worldBounds);
         Health health { dragon_hp };
         Action act { 0 };
         Mana mp { mp_dist(randGen()) };
@@ -85,7 +87,7 @@ Game::Game(Engine &ctx, const BenchmarkConfig &bench)
     }
 
     for (int i = 0; i < init_num_knights; i++) {
-        Position rand_pos = randomPosition();
+        Position rand_pos = randomPosition(worldBounds);
         Health health { knight_hp };
         Action act { 0 };
         Quiver q { arrows_dist(randGen()) };
@@ -94,13 +96,15 @@ Game::Game(Engine &ctx, const BenchmarkConfig &bench)
     }
 }
 
-void Game::tick(Engine &ctx)
+static JobID actionSelectSystem(Engine &ctx)
 {
-    JobID init_action_job = ctx.parallelFor(actionQuery, [this](Engine &ctx,
-                                                           Position &pos,
-                                                           Action &action) {
+    return ctx.parallelFor(ctx.game().actionQuery, [](Engine &ctx,
+                                                      Position &pos,
+                                                      Action &action) {
+        const Game &game = ctx.game();
+
         if (action.remainingTime > 0) {
-            action.remainingTime -= deltaT;
+            action.remainingTime -= game.deltaT;
             return;
         }
         
@@ -109,7 +113,8 @@ void Game::tick(Engine &ctx)
         float move_cutoff = 0.5f;
 
         if (action_prob(randGen()) <= move_cutoff) {
-            ctx.submit([this, &pos, &action](Engine &) {
+            ctx.submit([&pos, &action](Engine &ctx) {
+                const AABB &world_bounds = ctx.game().worldBounds;
 
                 // Move
                 std::uniform_real_distribution<float> pos_dist(-1.f, 1.f);
@@ -120,22 +125,27 @@ void Game::tick(Engine &ctx)
                     pos_dist(randGen()),
                 };
 
-                new_pos.x = std::clamp(new_pos.x, worldBounds.pMin.x, worldBounds.pMax.x);
-                new_pos.y = std::clamp(new_pos.y, worldBounds.pMin.y, worldBounds.pMax.y);
-                new_pos.z = std::clamp(new_pos.x, worldBounds.pMin.z, worldBounds.pMax.z);
+                new_pos.x = std::clamp(new_pos.x, world_bounds.pMin.x, world_bounds.pMax.x);
+                new_pos.y = std::clamp(new_pos.y, world_bounds.pMin.y, world_bounds.pMax.y);
+                new_pos.z = std::clamp(new_pos.x, world_bounds.pMin.z, world_bounds.pMax.z);
 
                 Vector3 pos_delta = new_pos - pos;
                 pos = new_pos;
 
-                action.remainingTime = pos_delta.length() / moveSpeed;
+                action.remainingTime = pos_delta.length() / ctx.game().moveSpeed;
             });
         } 
     });
+}
 
-    JobID cast_job = ctx.parallelFor(casterQuery, [this](Engine &ctx,
-                                                         Action &action,
-                                                         Mana &mana) {
-        mana.mp += manaRegenRate * deltaT;
+static JobID casterSystem(Engine &ctx, JobID action_job)
+{
+    return ctx.parallelFor(ctx.game().casterQuery, [](Engine &ctx,
+                                                      Action &action,
+                                                      Mana &mana) {
+        const Game &game = ctx.game();
+
+        mana.mp += game.manaRegenRate * game.deltaT;
 
         if (action.remainingTime > 0) {
             return;
@@ -150,11 +160,11 @@ void Game::tick(Engine &ctx)
 
         mana.mp -= cast_cost;
 
-        auto target_pos = randomPosition();
+        auto target_pos = randomPosition(game.worldBounds);
 
-        ctx.parallelFor(healthQuery, [target_pos](Engine &,
-                                                  const Position &pos,
-                                                  Health &health) {
+        ctx.parallelFor(game.healthQuery, [target_pos](Engine &,
+                                                       const Position &pos,
+                                                       Health &health) {
             const float blast_radius = 2.f;
             const float damage = 20.f;
 
@@ -163,12 +173,15 @@ void Game::tick(Engine &ctx)
             }
         });
 
-        action.remainingTime = castTime;
-    }, true, init_action_job);
+        action.remainingTime = game.castTime;
+    }, true, action_job);
+}
 
-    JobID archer_job = ctx.parallelFor(archerQuery, [this](Engine &ctx,
-                                                           Action &action,
-                                                           Quiver &quiver) {
+static JobID archerSystem(Engine &ctx, JobID action_job)
+{
+    return ctx.parallelFor(ctx.game().archerQuery, [](Engine &ctx,
+                                                      Action &action,
+                                                      Quiver &quiver) {
         if (action.remainingTime > 0 || quiver.numArrows == 0) {
             return;
         }
@@ -185,8 +198,17 @@ void Game::tick(Engine &ctx)
         dragon_health.hp -= damage;
 
         quiver.numArrows -= 1;
-        action.remainingTime = shootTime;
-    }, true, init_action_job);
+        action.remainingTime = ctx.game().shootTime;
+    }, true, action_job);
+}
+
+void Game::tick(Engine &ctx)
+{
+    JobID init_action_job = actionSelectSystem(ctx);
+
+    JobID cast_job = casterSystem(ctx, init_action_job);
+
+    JobID archer_job = archerSystem(ctx, init_action_job);
 
     ctx.submit([this](Engine &ctx) {
         ctx.forEach(cleanupQuery, [&ctx](Entity e, Health &health) {
@@ -222,7 +244,7 @@ void Game::gameLoop(Engine &ctx)
         }
 
         if (tickCount % 10000 == 0) {
-            printf("Tick start %llu\n", tickCount);
+            printf("Tick start %" PRIu64 "\n", tickCount);
         }
         tick(ctx);
 
@@ -232,6 +254,13 @@ void Game::gameLoop(Engine &ctx)
     }, false, ctx.currentJobID());
 }
 
+void Game::benchmarkTick(Engine &ctx)
+{
+    JobID init_action_job = actionSelectSystem(ctx);
+    casterSystem(ctx, init_action_job);
+    archerSystem(ctx, init_action_job);
+}
+
 void Game::benchmark(Engine &ctx, const BenchmarkConfig &bench)
 {
     ctx.submit([this, &bench](Engine &ctx) {
@@ -239,97 +268,7 @@ void Game::benchmark(Engine &ctx, const BenchmarkConfig &bench)
             return;
         }
 
-        JobID init_action_job = ctx.parallelFor(actionQuery, [this](Engine &ctx,
-                                                               Position &pos,
-                                                               Action &action) {
-            if (action.remainingTime > 0) {
-                action.remainingTime -= deltaT;
-                return;
-            }
-            
-            std::uniform_real_distribution<float> action_prob(0.f, 1.f);
-
-            float move_cutoff = 0.5f;
-
-            if (action_prob(randGen()) <= move_cutoff) {
-                ctx.submit([this, &pos, &action](Engine &) {
-
-                    // Move
-                    std::uniform_real_distribution<float> pos_dist(-1.f, 1.f);
-
-                    Vector3 new_pos = pos + Vector3 {
-                        pos_dist(randGen()),
-                        pos_dist(randGen()),
-                        pos_dist(randGen()),
-                    };
-
-                    new_pos.x = std::clamp(new_pos.x, worldBounds.pMin.x, worldBounds.pMax.x);
-                    new_pos.y = std::clamp(new_pos.y, worldBounds.pMin.y, worldBounds.pMax.y);
-                    new_pos.z = std::clamp(new_pos.x, worldBounds.pMin.z, worldBounds.pMax.z);
-
-                    Vector3 pos_delta = new_pos - pos;
-                    pos = new_pos;
-
-                    action.remainingTime = pos_delta.length() / moveSpeed;
-                });
-            } 
-        });
-
-        ctx.parallelFor(casterQuery, [this](Engine &ctx,
-                                            Action &action,
-                                            Mana &mana) {
-            mana.mp += manaRegenRate * deltaT;
-
-            if (action.remainingTime > 0) {
-                return;
-            }
-            // move job runs first so if remainingTime == 0, always act (otherwise would do nothing)
-
-            const float cast_cost = 20.f;
-
-            if (mana.mp < cast_cost) {
-                return;
-            }
-
-            mana.mp -= cast_cost;
-
-            auto target_pos = randomPosition();
-
-            ctx.parallelFor(healthQuery, [target_pos](Engine &,
-                                                      const Position &pos,
-                                                      Health &health) {
-                const float blast_radius = 2.f;
-                const float damage = 20.f;
-
-                if (target_pos.distance(pos) <= blast_radius) {
-                    health.hp -= damage;
-                }
-            });
-
-            action.remainingTime = castTime;
-        }, true, init_action_job);
-
-        ctx.parallelFor(archerQuery, [this](Engine &ctx,
-                                            Action &action,
-                                            Quiver &quiver) {
-            if (action.remainingTime > 0 || quiver.numArrows == 0) {
-                return;
-            }
-
-            auto dragons = ctx.archetype<Dragon>();
-            uint32_t num_dragons = dragons.size();
-
-            std::uniform_int_distribution<uint32_t> dragon_sel(0, num_dragons - 1);
-
-            uint32_t dragon_idx = dragon_sel(randGen());
-            Health &dragon_health = dragons.get<Health>(dragon_idx);
-
-            const float damage = 15.f;
-            dragon_health.hp -= damage;
-
-            quiver.numArrows -= 1;
-            action.remainingTime = shootTime;
-        }, true, init_action_job);
+        benchmarkTick(ctx);
 
         tickCount++;
 

@@ -20,11 +20,11 @@ struct Game {
     static void entry(Engine &ctx, const BenchmarkConfig &bench);
 
     Game(Engine &ctx, const BenchmarkConfig &bench);
-    void gameLoop(Engine &ctx);
     void tick(Engine &ctx);
-    void benchmark(Engine &ctx, const BenchmarkConfig &bench);
+    void gameLoop(Engine &ctx);
 
-    madrona::Vector3 randomPosition();
+    void benchmarkTick(Engine &ctx);
+    void benchmark(Engine &ctx, const BenchmarkConfig &bench);
 
     uint64_t tickCount;
 
