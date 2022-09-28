@@ -11,7 +11,8 @@ namespace MadRogue {
 // FIXME
 static std::mt19937 & randGen()
 {
-    thread_local std::mt19937 rand_gen { std::random_device {}() };
+    //thread_local std::mt19937 rand_gen { std::random_device {}() };
+    thread_local std::mt19937 rand_gen { 0 };
 
     return rand_gen;
 }
